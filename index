@@ -1,0 +1,122 @@
+
+#include <LiquidCrystal.h>
+//2 linie na wyswietlaczu
+LCD4Bit_mod lcd = LCD4Bit_mod(2);
+//Key message
+char msgs[5][15] = {
+	"RIGHT   ",
+	"UP      ",
+	"DOWN    ",
+	"LEFT    ",
+	"SELECT  " 
+};
+char menu[4][15] = {
+	"MENU 1      ",
+	"MENU 2      ",
+	"MENU 3      ",
+	"MENU 4      "
+};
+char wybor[4][15] = {
+	"opcja 1",
+	"aaa    ",
+	"bbb   ",
+	"ccc   "
+};
+int  adc_key_val[5] = { 30, 150, 360, 535, 760 };
+int NUM_KEYS = 5;
+int adc_key_in;
+int key=-1;
+int oldkey=-1;
+int poz=0;
+int s=-1;
+int ekran=0;
+void setup() {
+	lcd.init();
+	lcd.clear();
+//lcd.printIn("Test LCD...");
+}
+void loop() {
+	adc_key_in = analogRead(0);    // read the value from the sensor   
+	key = get_key(adc_key_in);            // convert into key press
+
+	if (key != oldkey)            // if keypress is detected
+	{
+		delay(5);    // wait for debounce time
+		adc_key_in = analogRead(0);    // read the value from the sensor  
+		key = get_key(adc_key_in);            // convert into key press
+		if (key != oldkey)
+		{
+			oldkey = key;
+			if (key >=0) {
+				switch (key) {
+					case 2:
+  					if(ekran=0){
+  						if(s==1)
+  						{
+  							poz++;
+  							if(poz>1)
+  								poz=1;
+  						}
+  						s++;
+  						if(s>1) s=1;
+  					}
+						break;
+					case 1:
+  					if(ekran=0){
+  						if(s==0)
+  						{
+  							poz--;
+  							if(poz<0)poz=0;
+  						}
+  						s--;
+  						if(s<0) 
+  							s=0;
+  					}
+						break;
+					case 4:
+						ekran=1;
+						break;
+					case 3:
+						ekran=0;
+						break;
+				}
+				lcd.clear();
+				if(ekran==0)
+				{
+					if(s==0){
+						lcd.cursorTo(s+1,0);
+						lcd.printIn("->");
+					}
+					lcd.cursorTo(1, 2);  //line=2, x=0
+					lcd.printIn(menu[poz]);
+					if(s==1)
+					{
+						lcd.cursorTo(s+1,0);
+						lcd.printIn("->");
+					}
+					lcd.cursorTo(2,2);
+					lcd.printIn(menu[poz+1]);
+				}
+				if(ekran==1)
+				{
+					lcd.clear();
+					lcd.printIn(wybor[poz+s]);
+				}
+			}
+		}
+	}
+}
+// Convert ADC value to key number
+int get_key(unsigned int input)
+{
+	int k;
+	for (k = 0; k < NUM_KEYS; k++)
+	{
+		if (input < adc_key_val[k])
+			return k;
+	}
+
+	if (k >= NUM_KEYS)
+		k = -1;     // No valid key pressed
+	return k;
+}
