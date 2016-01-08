@@ -1,122 +1,449 @@
-
 #include <LiquidCrystal.h>
-//2 linie na wyswietlaczu
-LCD4Bit_mod lcd = LCD4Bit_mod(2);
-//Key message
-char msgs[5][15] = {
-	"RIGHT   ",
-	"UP      ",
-	"DOWN    ",
-	"LEFT    ",
-	"SELECT  " 
-};
-char menu[4][15] = {
-	"MENU 1      ",
-	"MENU 2      ",
-	"MENU 3      ",
-	"MENU 4      "
-};
-char wybor[4][15] = {
-	"opcja 1",
-	"aaa    ",
-	"bbb   ",
-	"ccc   "
-};
-int  adc_key_val[5] = { 30, 150, 360, 535, 760 };
-int NUM_KEYS = 5;
+LCD4Bit_mod lcd = LCD4Bit_mod(2); // 2 linijki wyświetlacza
+int  adc_key_val[5] ={30, 150, 360, 535, 760 };  // wartości ADC dla poszczególnych przycisków
+int NUM_KEYS = 5; // liczba przycisków
 int adc_key_in;
 int key=-1;
 int oldkey=-1;
-int poz=0;
-int s=-1;
-int ekran=0;
-void setup() {
-	lcd.init();
-	lcd.clear();
-//lcd.printIn("Test LCD...");
-}
-void loop() {
-	adc_key_in = analogRead(0);    // read the value from the sensor   
-	key = get_key(adc_key_in);            // convert into key press
 
-	if (key != oldkey)            // if keypress is detected
-	{
-		delay(5);    // wait for debounce time
-		adc_key_in = analogRead(0);    // read the value from the sensor  
-		key = get_key(adc_key_in);            // convert into key press
-		if (key != oldkey)
-		{
-			oldkey = key;
-			if (key >=0) {
-				switch (key) {
-					case 2:
-  					if(ekran=0){
-  						if(s==1)
-  						{
-  							poz++;
-  							if(poz>1)
-  								poz=1;
-  						}
-  						s++;
-  						if(s>1) s=1;
-  					}
-						break;
-					case 1:
-  					if(ekran=0){
-  						if(s==0)
-  						{
-  							poz--;
-  							if(poz<0)poz=0;
-  						}
-  						s--;
-  						if(s<0) 
-  							s=0;
-  					}
-						break;
-					case 4:
-						ekran=1;
-						break;
-					case 3:
-						ekran=0;
-						break;
-				}
-				lcd.clear();
-				if(ekran==0)
-				{
-					if(s==0){
-						lcd.cursorTo(s+1,0);
-						lcd.printIn("->");
-					}
-					lcd.cursorTo(1, 2);  //line=2, x=0
-					lcd.printIn(menu[poz]);
-					if(s==1)
-					{
-						lcd.cursorTo(s+1,0);
-						lcd.printIn("->");
-					}
-					lcd.cursorTo(2,2);
-					lcd.printIn(menu[poz+1]);
-				}
-				if(ekran==1)
-				{
-					lcd.clear();
-					lcd.printIn(wybor[poz+s]);
-				}
-			}
-		}
-	}
+int UP,DOWN,SELECT,LEFT,RIGHT;    // przyciski
+#define CLEAR_ALL   UP=DOWN=SELECT=LEFT=RIGHT=0;
+
+int poziom=0; // poziom menu
+int kursor=0; //strzałka
+int pozycja=0;  //aktualnie wyświetlana pozycja menu [0] i [1]
+int blokada=0;  // zablokowanie nawigacji
+int powrot=0;
+int opcja=0;
+int poz_kurs=0;   // pozycja kursora przy ustawianiu
+// data i godzina
+int data_d=0; // data - cyfra dziesiątek
+int data_j=1; // data - cyfra jedności
+int miesiac=0;  // miesiąc
+int rok_t=2;  // rok - cyfra tysięcy
+int rok_s=0;  // rok - cyfra setek
+int rok_d=1;  // rok - cyfra dziesiątek
+int rok_j=5;  // rok - cyfra jedności
+int etap=1;   // ustawiany element
+int godzina=12; // godzina
+int minuty_d=0; // minuty - cyfra dziesiątek
+int minuty_j=0; // minuty - cyfra jedności
+
+char menu_Glowne[4][16]={"DATA I GODZINA","TRYB PRACY","TEMPERATURA","WENTYLATOR"};
+char menu_DataGodzina[2][16]={"DATA","GODZINA"};
+char menu_Tryb[2][16]={"LATO","ZIMA"};
+char menu_Temp[3][16]={"TEMP ZADANA","HISTEREZA","MINIMALNA"};
+char menu_Went[3][16]={"PREDKOSC","CZAS PRACY","CZAS PRZERWY"};
+
+int tempZad=60;
+int histereza=2;
+int tempMin=45;
+char tekst[16];
+
+int p1=0;
+int opcja1=0;
+
+
+void setup()
+{
+  CLEAR_ALL;
+  lcd.init();
+  lcd.clear();
+  wysw_menu(4,menu_Glowne);
 }
+
+// pętla główna
+void loop()
+{
+  adc_key_in = analogRead(0);    // odczyt wartości z ADC
+  key = get_key(adc_key_in);     // odczytany przycisk
+
+  if (key != oldkey)            // wykrycie wciśnięcia przycisku
+  {
+    delay(50);
+    adc_key_in = analogRead(0);
+    key = get_key(adc_key_in);
+    if (key != oldkey)
+    {
+      oldkey = key;
+      if (key >=0)
+      {
+        check_key(key); // sprawdzenie który przycisk wciśnięto
+//--- poprawić
+        if(blokada==0)
+      nawigacja();
+    switch(poziom)
+    {
+      case 0:
+        wysw_menu(4,menu_Glowne);
+        break;
+      case 1:
+        switch(opcja)
+        {
+          case 0:
+            wysw_menu(2,menu_DataGodzina);
+            p1=0;   
+            break;
+          case 1:
+            wysw_menu(2,menu_Tryb);
+            p1=1; 
+            break;
+          case 2:
+            wysw_menu(3,menu_Temp); 
+            p1=2; 
+            break; 
+          case 3:
+            wysw_menu(3,menu_Went);
+            p1=3; 
+            break;      
+        }
+        break;
+      case 2:
+        blokada=1;
+        opcja1=p1*10+opcja;
+        switch(opcja1)
+        {
+        case 0:
+          ustaw_date();
+          break;
+        case 1:
+          ustaw_godzine();
+          break;
+        case 10:
+          lcd.clear();
+          lcd.printIn("Wybrano tryb lato");
+          blokada=0;
+          break; 
+        case 11:
+          lcd.clear();
+          lcd.printIn("Wybrano tryb zima"); 
+          blokada=0;
+          break;          
+        case 20:  //temp zadana
+          if(LEFT)
+            powrot_temp();
+          else
+          { 
+            lcd.clear();
+            lcd.cursorTo(1,0);
+            lcd.printIn("Temp zadana");
+            tempZad=ustaw_liczbe(tempZad,70,50);
+            sprintf(tekst,"%d",tempZad);
+            lcd.cursorTo(2,6);
+            lcd.printIn(tekst);
+            powrot_temp();
+          }
+          break;
+        case 21: //histereza
+          if(LEFT)
+            powrot_temp();
+          else
+          { 
+            lcd.clear();        
+            lcd.cursorTo(1,0);
+            lcd.printIn("Histereza temp");
+            histereza=ustaw_liczbe(histereza,7,1);
+            sprintf(tekst,"%d",histereza);
+            lcd.cursorTo(2,6);
+            lcd.printIn(tekst);
+            powrot_temp();
+          }
+          break;
+        case 22: //temperatura minimalna
+          if(LEFT)
+            powrot_temp();
+          else
+          {
+            lcd.clear();
+            lcd.cursorTo(1,0);
+            lcd.printIn("Temp min");
+            tempMin=ustaw_liczbe(tempMin,50,40);
+            sprintf(tekst,"%d",tempMin);
+            lcd.cursorTo(2,6);
+            lcd.printIn(tekst);
+          }       
+          break;
+        }         
+        break;  
+      }
+    }
+  }
+}
+}
+void nawigacja() // funkcja nawigacji w menu
+{
+  if(DOWN)
+  {
+    if(kursor==1)
+    pozycja++;
+  kursor++;
+    if(kursor>1)
+    kursor=1;
+  }
+  if(UP)
+  {
+    if(kursor==0)
+    pozycja--;
+  if(pozycja<0)
+    pozycja=0;
+    kursor--;
+    if(kursor<0)
+      kursor=0;
+  }
+  if(SELECT)
+  {
+  poziom++;
+  opcja=kursor+pozycja;
+  kursor=pozycja=0;
+  }
+  if(LEFT)
+    poziom--;
+if(poziom<0)
+  poziom=0;
+}
+
+void wysw_menu(int ile, char tab[][16])
+{
+  if(pozycja>ile-2)
+    pozycja=ile-2;
+  lcd.clear();
+  lcd.cursorTo(kursor+1,0);
+  lcd.printIn("->");
+  lcd.cursorTo(1,2);
+  lcd.printIn(tab[pozycja]);
+  lcd.cursorTo(2,2);
+  lcd.printIn(tab[pozycja+1]);
+}
+int ustaw_liczbe(int z,int max,int min)
+{
+  char tab[16];
+  if(UP)
+    z++;
+  if(z>max)
+    z=max;
+  if(DOWN)
+    z--;
+  if(z<min)
+    z=min;
+SELECT=1;
+return z;
+}
+void ustaw_date()
+{
+  char mies[12][6]={"stycz","luty","marz","kwie","maj","czerw","lip","sier","wrze","paz","grudz"};
+  char data[16];
+  if(SELECT)  // powrót do menu
+    powrot++;
+  if(powrot>1)
+  {
+    lcd.cursorOff();
+    blokada=0;
+    opcja=0;
+    powrot=0;
+  }
+  else
+  {
+  lcd.clear();
+    lcd.cursorOff();
+    lcd.cursorTo(1,2);
+    if(RIGHT)
+      etap++;// przesuwanie do kolejnego ustawianego elementu
+    if(LEFT)
+      etap--;
+    if(etap>7)  etap=1;
+    if(etap<1)  etap=7;
+    switch(etap)
+    {
+    case 1:   // ustawianie cyfry dziesiątek daty
+      lcd.printIn("Ustaw dzien");
+      if(UP)
+      data_d++;
+      if(DOWN)
+      data_d--;
+      if(data_d>3)  data_d=0;
+      if(data_d<0)  data_d=3;
+      //należy dorobić ograniczenie na daty od 32 do 39
+      poz_kurs=0;
+    break;
+    case 2:   // ustawianie cyfry jedności daty
+      lcd.printIn("Ustaw dzien");
+      if(UP)
+      data_j++;
+      if(DOWN)
+      data_j--;
+      if(data_j>9)  data_j=0;
+      if(data_j<0)  data_j=9;
+      poz_kurs=1;
+    break;
+    case 3:
+      lcd.printIn("Ustaw miesiac");
+      if(UP)
+      miesiac++;
+      if(DOWN)
+      miesiac--;
+      if(miesiac>11)  miesiac=0;
+      if(miesiac<0) miesiac=11;
+      poz_kurs=3;
+    break;
+    case 4:   // ustawianie cyfry tysięcy roku
+      lcd.printIn("Ustaw rok");
+      if(UP)
+      rok_t++;
+      if(DOWN)
+      rok_t--;
+      if(rok_t>9) rok_t=0;
+      if(rok_t<0) rok_t=9;
+      poz_kurs=4+strlen(mies[miesiac]);
+    break;
+    case 5:   // ustawianie cyfry dziesiątek roku
+      lcd.printIn("Ustaw rok");
+      if(UP)
+      rok_s++;
+      if(DOWN)
+      rok_s--;
+      if(rok_s>9) rok_s=0;
+      if(rok_s<0) rok_s=9;
+      poz_kurs=5+strlen(mies[miesiac]);
+    break;
+    case 6:   // ustawianie cyfry dziesiątek roku
+      lcd.printIn("Ustaw rok");
+      if(UP)
+      rok_d++;
+      if(DOWN)
+      rok_d--;
+      if(rok_d>9) rok_d=0;
+      if(rok_d<0) rok_d=9;
+      poz_kurs=6+strlen(mies[miesiac]);
+    break;
+    case 7:   // ustawianie cyfry jedności roku
+      lcd.printIn("Ustaw rok");
+      if(UP)
+      rok_j++;
+      if(DOWN)
+      rok_t--;
+      if(rok_j>9) rok_j=0;
+      if(rok_j<0) rok_j=9;
+      poz_kurs=7+strlen(mies[miesiac]);
+    break;
+    }
+    sprintf(data,"%d%d-%s-%d%d%d%d",data_d,data_j,mies[miesiac],rok_t,rok_s,rok_d,rok_j); // tworzenie łańcucha znaków
+    lcd.cursorTo(2,0);
+    lcd.printIn(data);
+    lcd.cursorTo(2,poz_kurs);
+    lcd.cursorOn();
+  }
+}
+
+void ustaw_godzine()
+{
+  char godz[16];
+
+  if(SELECT)  // powrót do menu
+    powrot++;
+  if(powrot>1)
+  {
+    lcd.cursorOff();
+    blokada=0;
+    powrot=0;
+    etap=1;
+	opcja=0;
+  }
+  else
+  {
+      lcd.clear();
+    lcd.cursorOff();
+    lcd.cursorTo(1,2);
+    if(RIGHT)
+      etap++;// przesuwanie do kolejnego ustawianego elementu
+    if(LEFT)
+      etap--;
+    if(etap>3)  etap=1;
+    if(etap<1)  etap=3;
+    switch(etap)
+    {
+      case 1:   // ustawianie godziny
+        lcd.printIn("Ustaw godzine");
+        if(UP)
+          godzina++;
+        if(DOWN)
+          godzina--;
+        if(godzina>23)  godzina=0;
+        if(godzina<0)  godzina=23;
+        if(godzina>9)
+          poz_kurs=5;
+        else
+          poz_kurs=4;
+      break;
+      case 2:   // ustawianie cyfry dziesiątek minut
+        lcd.printIn("Ustaw minuty");
+        if(UP)
+          minuty_d++;
+        if(DOWN)
+          minuty_d--;
+        if(minuty_d>5) minuty_d=0;
+        if(minuty_d<0) minuty_d=5;
+        if(godzina>9)
+          poz_kurs=7;
+        else
+          poz_kurs=6;
+      break;
+      case 3:   // ustawianie cyfry dziesiątek minut
+        lcd.printIn("Ustaw minuty");
+        if(UP)
+          minuty_j++;
+        if(DOWN)
+          minuty_j--;
+        if(minuty_j>5) minuty_j=0;
+        if(minuty_j<0) minuty_j=5;
+        if(godzina>9)
+          poz_kurs=8;
+        else
+          poz_kurs=7;
+      break;
+    }
+    sprintf(godz,"%d:%d%d",godzina,minuty_d,minuty_j); // tworzenie łańcucha znaków
+    lcd.cursorTo(2,4);
+    lcd.printIn(godz);
+    lcd.cursorTo(2,poz_kurs);
+    lcd.cursorOn();
+  }
+}
+
+void powrot_temp()
+{
+    blokada=0;
+    poziom--;
+    lcd.clear();
+    wysw_menu(3,menu_Temp);
+    opcja=2;
+}
+void check_key(int key) // sprawdzanie który przycisk wciśnięto
+{
+  CLEAR_ALL;    // zerowanie wszystkich przycisków
+  if(key==0)  RIGHT=1;
+  if(key==1)  UP=1;
+  if(key==2)  DOWN=1;
+  if(key==3)  LEFT=1;
+  if(key==4)  SELECT=1;
+}
+//-------------
+
 // Convert ADC value to key number
 int get_key(unsigned int input)
 {
-	int k;
-	for (k = 0; k < NUM_KEYS; k++)
-	{
-		if (input < adc_key_val[k])
-			return k;
-	}
+  int k;
 
-	if (k >= NUM_KEYS)
-		k = -1;     // No valid key pressed
-	return k;
+  for (k = 0; k < NUM_KEYS; k++)
+  {
+    if (input < adc_key_val[k])
+    {
+
+    return k;
+        }
+  }
+
+    if (k >= NUM_KEYS)
+        k = -1;     // No valid key pressed
+
+    return k;
 }
